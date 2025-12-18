@@ -38,14 +38,13 @@ export default function SignupForm() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
-  const { generateMnemonic, generateKeyPair, isGenerating } = useCrypto();
+  const { isProcessing, generateMnemonic, generateKeyPair, encryptPrivateKey } = useCrypto();
 
   useEffect(() => {
     // Generate mnemonic only when we get to step 2 for the first time
     if (step === 2 && !recoveryPhrase) {
       const mnemonic = generateMnemonic();
       setRecoveryPhrase(mnemonic);
-      // We will generate key pair on final submission
     }
   }, [step, recoveryPhrase, generateMnemonic]);
   
@@ -79,7 +78,7 @@ export default function SignupForm() {
       }
       
       const keyPair = await generateKeyPair();
-      if (!keyPair) {
+      if (!keyPair || !keyPair.privateKey) {
           toast({
               variant: "destructive",
               title: "Key Generation Failed",
@@ -87,13 +86,28 @@ export default function SignupForm() {
           });
           return;
       }
+      
+      const keyVault = await encryptPrivateKey(keyPair.privateKey, recoveryPhrase);
+      if (!keyVault) {
+           toast({
+              variant: "destructive",
+              title: "Encryption Failed",
+              description: "Could not secure your private key. Please try again."
+          });
+          return;
+      }
 
-      console.log("Signup values:", values);
-      console.log("Generated Public Key (to be stored):", keyPair.publicKey);
-      // In a real app, you'd handle account creation here.
+      console.log("--- SECURE SIGNUP ---");
+      console.log("Signup values:", { email: values.email, nickname: values.nickname });
+      console.log("Generated Public Key (store this):", keyPair.publicKey);
+      console.log("Key Vault (store this in Firestore at /users/{userId}/key_vault):", keyVault);
+      console.log("The raw private key was never exposed or stored plaintext.");
+      console.log("--- END SECURE SIGNUP ---");
+
+      // In a real app, you would handle account creation here:
       // 1. Create user with email/password via Firebase Auth.
-      // 2. Encrypt the private key with the recovery phrase.
-      // 3. Store the encrypted private key, public key, and salt in Firestore.
+      // 2. Store user profile data, public key, and the 'keyVault' object in Firestore.
+      
       toast({
         title: "Account Created!",
         description: "Redirecting to your new dashboard...",
@@ -201,7 +215,7 @@ export default function SignupForm() {
                         </AlertDescription>
                     </Alert>
                     <div className="p-4 border-2 border-dashed rounded-lg bg-muted/50 min-h-[100px] flex items-center justify-center">
-                        {isGenerating ? (
+                        {isProcessing ? (
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         ) : (
                             <p className="text-lg font-mono text-center tracking-wide leading-relaxed">
@@ -210,10 +224,10 @@ export default function SignupForm() {
                         )}
                     </div>
                     <div className="flex gap-2">
-                        <Button type="button" variant="secondary" onClick={copyToClipboard} className="w-full" disabled={isGenerating || !recoveryPhrase}>
+                        <Button type="button" variant="secondary" onClick={copyToClipboard} className="w-full" disabled={isProcessing || !recoveryPhrase}>
                             <Copy className="mr-2 h-4 w-4" /> Copy Phrase
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={handleGenerateNewPhrase} disabled={isGenerating}>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleGenerateNewPhrase} disabled={isProcessing}>
                             <RefreshCw className="h-4 w-4" />
                         </Button>
                     </div>
@@ -236,8 +250,8 @@ export default function SignupForm() {
                     />
                   </CardContent>
                   <CardFooter className="flex flex-col gap-4">
-                     <Button type="submit" className="w-full" disabled={isGenerating}>
-                      {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                     <Button type="submit" className="w-full" disabled={isProcessing}>
+                      {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Complete Signup
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => setStep(1)} className="w-full">

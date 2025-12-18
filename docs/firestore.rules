@@ -1,0 +1,41 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection
+    match /users/{userId} {
+      // Anyone can read public profile info (name, bio, etc.)
+      allow read: if true; 
+      
+      // Only the authenticated owner can write to their own profile document
+      allow write: if request.auth.uid == userId;
+
+      // /users/{userId}/key_vault subcollection
+      match /key_vault/{docId} {
+        // Only the owner can read or write their own encrypted key vault.
+        // This is the most critical rule for the TNO architecture.
+        allow read, write: if request.auth.uid == userId;
+      }
+
+      // /users/{userId}/blocks subcollection
+      match /blocks/{blockId} {
+        // Anyone can read blocks that are explicitly marked as 'public'
+        allow read: if resource.data.visibility == 'public';
+
+        // The owner can read and write all of their blocks, regardless of visibility
+        allow read, write: if request.auth.uid == userId;
+        
+        // TODO: Add rule for 'friends-only' visibility based on connections
+      }
+
+      // /users/{userId}/connections subcollection
+      match /connections/{connectionId} {
+         // Only involved parties can read a connection, but only the owner can write to their side of it.
+        allow read, write: if request.auth.uid == userId;
+        // TODO: Refine rules to allow the other user in the connection to read.
+      }
+    }
+  }
+}

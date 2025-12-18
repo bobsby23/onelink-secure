@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -18,15 +19,29 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { useCrypto } from "@/hooks/use-crypto";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
   password: z.string().min(1, { message: "Password is required." }),
+  // In a real app with passwordless/recovery phrase login, you'd have a separate field for this.
+  // For simulation, we'll just re-use the password field.
 });
+
+// This is a MOCK key vault that would be fetched from Firestore after user authenticates.
+const MOCK_KEY_VAULT = {
+    "encryptedKey": "S5s...EXAMPLE...A==",
+    "salt": "Salty...EXAMPLE...A==",
+    "iv": "IV...EXAMPLE...A==",
+};
+// This is the MOCK recovery phrase that was used to encrypt the key.
+const MOCK_RECOVERY_PHRASE = "legal ... example ... phrase";
+
 
 export default function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const { isProcessing, decryptPrivateKey } = useCrypto();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -36,15 +51,38 @@ export default function LoginForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     // In a real app, you would handle authentication here.
-    // For now, we'll simulate a successful login and redirect.
-    toast({
-      title: "Login Successful",
-      description: "Redirecting to your dashboard...",
-    });
-    router.push("/dashboard");
+    // 1. Authenticate with Firebase Auth (email/password).
+    // 2. Fetch the user's encrypted `key_vault` from Firestore.
+    // 3. Prompt for recovery phrase if the key isn't in memory/session.
+    
+    // For now, we'll simulate the decryption process.
+    console.log("--- SECURE LOGIN ---");
+    console.log("Attempting to decrypt key vault for:", values.email);
+    console.log("Using recovery phrase from input:", values.password);
+
+    // We use a mock vault and phrase for this demo.
+    // The password field here simulates the user entering their recovery phrase.
+    const decryptedKey = await decryptPrivateKey(MOCK_KEY_VAULT, values.password);
+
+    if (decryptedKey) {
+        console.log("Decryption successful! Private key rehydrated in memory:", decryptedKey);
+        console.log("This key can now be stored in-memory (e.g., Zustand) for the session.");
+        toast({
+            title: "Login Successful",
+            description: "Secure key rehydrated. Redirecting...",
+        });
+        router.push("/dashboard");
+    } else {
+        console.error("Decryption failed. The provided recovery phrase may be incorrect.");
+        toast({
+            variant: "destructive",
+            title: "Login Failed",
+            description: "Could not decrypt key vault. Please check your recovery phrase.",
+        });
+    }
+     console.log("--- END SECURE LOGIN ---");
   }
 
   return (
@@ -73,7 +111,7 @@ export default function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Password or Recovery Phrase</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
@@ -83,7 +121,7 @@ export default function LoginForm() {
             />
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isProcessing}>
               Log In
             </Button>
             <p className="text-sm text-muted-foreground">
