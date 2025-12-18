@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,8 +22,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Copy, RefreshCw, TriangleAlert } from "lucide-react";
+import { Copy, RefreshCw, TriangleAlert, Loader2 } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
+import { useCrypto } from "@/hooks/use-crypto";
 
 const formSchema = z.object({
   nickname: z.string().min(3, { message: "Nickname must be at least 3 characters." }),
@@ -31,13 +33,22 @@ const formSchema = z.object({
   hasSaved: z.boolean().refine(val => val, { message: "You must confirm you have saved your recovery phrase." }),
 });
 
-const recoveryPhrase = "apple banana kiwi grape mango pear orange pineapple strawberry lemon lime cherry";
-
 export default function SignupForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [recoveryPhrase, setRecoveryPhrase] = useState("");
+  const { generateMnemonic, generateKeyPair, isGenerating } = useCrypto();
 
+  useEffect(() => {
+    // Generate mnemonic only when we get to step 2 for the first time
+    if (step === 2 && !recoveryPhrase) {
+      const mnemonic = generateMnemonic();
+      setRecoveryPhrase(mnemonic);
+      // We will generate key pair on final submission
+    }
+  }, [step, recoveryPhrase, generateMnemonic]);
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,10 +67,33 @@ export default function SignupForm() {
     });
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     if (step === 2) {
-      console.log(values);
-      // In a real app, you would handle account creation here.
+      if (!recoveryPhrase) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Recovery phrase not generated. Please go back and try again."
+        });
+        return;
+      }
+      
+      const keyPair = await generateKeyPair();
+      if (!keyPair) {
+          toast({
+              variant: "destructive",
+              title: "Key Generation Failed",
+              description: "Could not generate cryptographic keys. Please try again."
+          });
+          return;
+      }
+
+      console.log("Signup values:", values);
+      console.log("Generated Public Key (to be stored):", keyPair.publicKey);
+      // In a real app, you'd handle account creation here.
+      // 1. Create user with email/password via Firebase Auth.
+      // 2. Encrypt the private key with the recovery phrase.
+      // 3. Store the encrypted private key, public key, and salt in Firestore.
       toast({
         title: "Account Created!",
         description: "Redirecting to your new dashboard...",
@@ -69,8 +103,14 @@ export default function SignupForm() {
   }
 
   const copyToClipboard = () => {
+    if (!recoveryPhrase) return;
     navigator.clipboard.writeText(recoveryPhrase);
     toast({ title: "Copied to clipboard!" });
+  }
+
+  const handleGenerateNewPhrase = () => {
+    const mnemonic = generateMnemonic();
+    setRecoveryPhrase(mnemonic);
   }
 
   return (
@@ -160,16 +200,20 @@ export default function SignupForm() {
                            Store it somewhere safe and secret. Do not share it with anyone.
                         </AlertDescription>
                     </Alert>
-                    <div className="p-4 border-2 border-dashed rounded-lg bg-muted/50">
-                        <p className="text-lg font-mono text-center tracking-wide leading-relaxed">
-                            {recoveryPhrase}
-                        </p>
+                    <div className="p-4 border-2 border-dashed rounded-lg bg-muted/50 min-h-[100px] flex items-center justify-center">
+                        {isGenerating ? (
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        ) : (
+                            <p className="text-lg font-mono text-center tracking-wide leading-relaxed">
+                                {recoveryPhrase}
+                            </p>
+                        )}
                     </div>
                     <div className="flex gap-2">
-                        <Button type="button" variant="secondary" onClick={copyToClipboard} className="w-full">
+                        <Button type="button" variant="secondary" onClick={copyToClipboard} className="w-full" disabled={isGenerating || !recoveryPhrase}>
                             <Copy className="mr-2 h-4 w-4" /> Copy Phrase
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" disabled>
+                        <Button type="button" variant="ghost" size="icon" onClick={handleGenerateNewPhrase} disabled={isGenerating}>
                             <RefreshCw className="h-4 w-4" />
                         </Button>
                     </div>
@@ -192,7 +236,8 @@ export default function SignupForm() {
                     />
                   </CardContent>
                   <CardFooter className="flex flex-col gap-4">
-                     <Button type="submit" className="w-full">
+                     <Button type="submit" className="w-full" disabled={isGenerating}>
+                      {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       Complete Signup
                     </Button>
                     <Button type="button" variant="ghost" onClick={() => setStep(1)} className="w-full">
