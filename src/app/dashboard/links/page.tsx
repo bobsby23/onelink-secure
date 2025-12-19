@@ -2,8 +2,7 @@
 import { loggedInUser } from "@/lib/data";
 import { columns } from "./_components/columns";
 import { DataTable } from "./_components/data-table";
-import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { AddLinkDialog } from "./_components/add-link-dialog";
 
 export default function LinksPage() {
   const links = loggedInUser.profile.blocks.filter(block => block.type === 'link');
@@ -17,10 +16,7 @@ export default function LinksPage() {
             Manage all your public, private, and friends-only links.
           </p>
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Link
-        </Button>
+        <AddLinkDialog />
       </div>
       <DataTable columns={columns} data={links} />
     </div>
