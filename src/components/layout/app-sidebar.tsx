@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -61,8 +62,8 @@ export function AppSidebar() {
                  <SidebarMenuButton asChild tooltip={{ children: "My Profile" }}>
                     <Link href={`/u/${loggedInUser.nickname}`}>
                         <Avatar className="w-7 h-7">
-                            <AvatarImage src={loggedInUser.avatarUrl} alt={loggedInUser.name} />
-                            <AvatarFallback>{loggedInUser.name.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={loggedInUser.avatarUrl} alt={loggedInUser.profile.name} />
+                            <AvatarFallback>{loggedInUser.profile.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <span className="truncate">{loggedInUser.profile.name}</span>
                     </Link>
