@@ -1,3 +1,4 @@
+
 import { notFound } from "next/navigation";
 import { findUserByNickname, loggedInUser } from "@/lib/data";
 import { BentoGrid } from "@/components/profile/bento-grid";
